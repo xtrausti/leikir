@@ -1,0 +1,12 @@
+{
+  "name": "leikir-kki-vakt",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "update": "node scripts/update.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.55.0"
+  }
+}
