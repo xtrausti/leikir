@@ -1,6 +1,14 @@
 name: Uppfæra leiki frá KKÍ
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/uppfaera-leiki.yml"
+      - "scripts/**"
+      - "watch-config.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
   schedule:
     - cron: "45 9 * * *"
   workflow_dispatch:
