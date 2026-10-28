@@ -1,5 +1,5 @@
 {
-  "pageTitle": "Leikir 9. og 10. flokks",
+  "pageTitle": "Leikir Breiðabliks",
   "sources": [
     {
       "key": "9",
@@ -14,6 +14,14 @@
       "mode": "pair",
       "suffixPattern": "\\s*10\\.?\\s*fl\\.?\\s*st\\.?$",
       "url": "https://kki.is/motamal/leikir-og-urslit/motayfirlit/Eitt-lid?league_id=193&season_id=132628&team_id=4749821#mbt:6-200$t&0=1:6-500$t&0=1"
+    },
+    {
+      "key": "master",
+      "team": "Breiðablik",
+      "kkiTeam": "Breiðablik",
+      "mode": "leagueHome",
+      "suffixPattern": "$^",
+      "url": "https://kki.is/motamal/leikir-og-urslit/motayfirlit/Leikir?league_id=231&season_id=132570#mbt:6-303$f&team=4760427"
     }
   ]
 }

@@ -53,7 +53,15 @@ async function scrape(browser, source) {
       let result;
       let venue;
       let home;
-      if (source.mode === "pair") {
+      if (source.mode === "leagueHome") {
+        const homeTeam = cells[1];
+        result = cells[2] || "-";
+        const awayTeam = cells[3];
+        venue = cells[4];
+        if (homeTeam.trim().toLocaleLowerCase("is") !== source.kkiTeam.trim().toLocaleLowerCase("is")) return null;
+        home = true;
+        rawOpponent = awayTeam;
+      } else if (source.mode === "pair") {
         const homeTeam = cells[1];
         result = cells[2] || "-";
         const awayTeam = cells[3];
@@ -77,7 +85,7 @@ async function scrape(browser, source) {
         result,
         venue
       };
-    });
+    }).filter(Boolean);
   } finally {
     await page.close();
   }
@@ -98,7 +106,8 @@ function article(game) {
   const travel = !game.home && !capitalVenues.test(game.venue);
   const result = game.result && game.result !== "-" ? " · úrslit " + esc(game.result) : "";
   const teamAttribute = game.key === "augnablik" ? "" : ' data-team="' + esc(game.key) + '"';
-  return '<article class="game' + (travel ? " travel" : "") + '"' + teamAttribute + '><div class="date"><strong>' + day + '</strong><span>' + month + " · " + weekday + '</span></div><div><div class="who"><span class="dot"></span>' + esc(game.team) + '</div><p class="match">' + esc(match) + '</p><p class="details">' + esc(game.time) + " · " + (game.home ? "heima" : "úti") + " · " + esc(game.venue) + result + "</p>" + (travel ? '<span class="travel-badge">📍 Utan höfuðborgarsvæðis</span>' : "") + "</div></article>";
+  const masterLabel = game.key === "master" ? '<div class="master-label"><span>MEISTARAFLOKKUR</span><strong>HEIMALEIKUR</strong></div>' : "";
+  return '<article class="game' + (travel ? " travel" : "") + (game.key === "master" ? " master" : "") + '"' + teamAttribute + '><div class="date"><strong>' + day + '</strong><span>' + month + " · " + weekday + '</span></div><div>' + masterLabel + '<div class="who"><span class="dot"></span>' + esc(game.team) + '</div><p class="match">' + esc(match) + '</p><p class="details">' + esc(game.time) + " · " + (game.home ? "heima" : "úti") + " · " + esc(game.venue) + result + "</p>" + (travel ? '<span class="travel-badge">📍 Utan höfuðborgarsvæðis</span>' : "") + "</div></article>";
 }
 
 const now = new Date();
