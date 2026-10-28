@@ -106,7 +106,7 @@ function article(game) {
   const travel = !game.home && !capitalVenues.test(game.venue);
   const result = game.result && game.result !== "-" ? " · úrslit " + esc(game.result) : "";
   const teamAttribute = game.key === "augnablik" ? "" : ' data-team="' + esc(game.key) + '"';
-  const masterLabel = game.key === "master" ? '<div class="master-label"><span>MEISTARAFLOKKUR</span><strong>HEIMALEIKUR</strong></div>' : "";
+  const masterLabel = game.key === "master" ? '<div class="master-label"><span>MEISTARAFLOKKUR KVENNA</span><strong>HEIMALEIKUR</strong></div>' : "";
   return '<article class="game' + (travel ? " travel" : "") + (game.key === "master" ? " master" : "") + '"' + teamAttribute + '><div class="date"><strong>' + day + '</strong><span>' + month + " · " + weekday + '</span></div><div>' + masterLabel + '<div class="who"><span class="dot"></span>' + esc(game.team) + '</div><p class="match">' + esc(match) + '</p><p class="details">' + esc(game.time) + " · " + (game.home ? "heima" : "úti") + " · " + esc(game.venue) + result + "</p>" + (travel ? '<span class="travel-badge">📍 Utan höfuðborgarsvæðis</span>' : "") + "</div></article>";
 }
 
