@@ -7,7 +7,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const monthShort = ["jan", "feb", "mar", "apr", "maí", "jún", "júl", "ágú", "sep", "okt", "nóv", "des"];
 const monthLong = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
 const weekdays = ["sun", "mán", "þri", "mið", "fim", "fös", "lau"];
-const capitalVenues = /smár|laugardal|kennara|hellir|hlíðarenda|urriðaholt|ásvell|kórinn|digranes|varmá|álftanes|grafarvog|dalhús|fjöln|dhl|origo|kr-heimili/i;
+const capitalVenues = /smár|laugardal|kennara|hellir|hlíðarenda|urriðaholt|ásvell|kórinn|digranes|varmá|álftanes|grafarvog|dalhús|fjöln|dhl|origo|kr-heimili|þg verk|unbroken/i;
 
 function esc(value) {
   return String(value).replace(/[&<>"']/g, char => ({
@@ -15,11 +15,26 @@ function esc(value) {
   })[char]);
 }
 
-function parseDate(value) {
-  const match = value.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})$/);
-  if (!match) throw new Error("Óþekkt dagsetning frá KKÍ: " + value);
-  const parts = match.slice(1).map(Number);
-  return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0], parts[3], parts[4]));
+function parseDateInfo(value) {
+  const exact = value.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})$/);
+  if (exact) {
+    const parts = exact.slice(1).map(Number);
+    return {
+      date: new Date(Date.UTC(parts[2], parts[1] - 1, parts[0], parts[3], parts[4])),
+      dateEnd: null,
+      time: value.slice(-5)
+    };
+  }
+  const range = value.match(/^(\d{2})-(\d{2})-(\d{4})\s+-\s+(\d{2})-(\d{2})-(\d{4})$/);
+  if (range) {
+    const parts = range.slice(1).map(Number);
+    return {
+      date: new Date(Date.UTC(parts[2], parts[1] - 1, parts[0])),
+      dateEnd: new Date(Date.UTC(parts[5], parts[4] - 1, parts[3], 23, 59)),
+      time: "Tími óákveðinn"
+    };
+  }
+  throw new Error("Óþekkt dagsetning frá KKÍ: " + value);
 }
 
 function cleanOpponent(raw, suffixPattern) {
@@ -32,7 +47,7 @@ async function scrape(browser, source) {
     await page.goto(source.url, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() =>
       [...document.querySelectorAll("tr")].some(row =>
-        /^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}/.test(row.querySelector("td")?.innerText.trim() || "")
+        /^(?:\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}|\d{2}-\d{2}-\d{4}\s+-\s+\d{2}-\d{2}-\d{4})$/.test(row.querySelector("td")?.innerText.trim() || "")
       ), null, { timeout: 60000 });
     for (const select of await page.locator("select").all()) {
       if (await select.locator('option[value="all"]').count()) await select.selectOption("all");
@@ -45,10 +60,11 @@ async function scrape(browser, source) {
         cells,
         gameId: firstLink?.getAttribute("game_id") || new URL(firstLink?.href || "https://kki.is").searchParams.get("game_id")
       };
-    }).filter(row => row.cells.length >= 4 && /^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}$/.test(row.cells[0])));
+    }).filter(row => row.cells.length >= 4 && /^(?:\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}|\d{2}-\d{2}-\d{4}\s+-\s+\d{2}-\d{2}-\d{4})$/.test(row.cells[0])));
     if (!rows.length) throw new Error("Engir leikir fundust fyrir " + source.team);
     return rows.map(({ cells, gameId }) => {
       const dateText = cells[0];
+      const dateInfo = parseDateInfo(dateText);
       let rawOpponent;
       let result;
       let venue;
@@ -78,8 +94,10 @@ async function scrape(browser, source) {
         gameId,
         key: source.key,
         team: source.team,
-        date: parseDate(dateText),
-        time: dateText.slice(-5),
+        competition: source.competition || "league",
+        date: dateInfo.date,
+        dateEnd: dateInfo.dateEnd,
+        time: dateInfo.time,
         opponent: cleanOpponent(rawOpponent, source.suffixPattern),
         home,
         result,
@@ -102,17 +120,24 @@ function article(game) {
   const day = game.date.getUTCDate();
   const month = monthShort[game.date.getUTCMonth()];
   const weekday = weekdays[game.date.getUTCDay()];
+  const rangeDay = game.dateEnd ? day + "–" + game.dateEnd.getUTCDate() : String(day);
+  const rangeMonth = game.dateEnd && game.dateEnd.getUTCMonth() !== game.date.getUTCMonth()
+    ? month + "–" + monthShort[game.dateEnd.getUTCMonth()]
+    : month;
   const match = game.home ? game.team + " — " + game.opponent : game.opponent + " — " + game.team;
   const travel = !game.home && !capitalVenues.test(game.venue);
+  const cup = game.competition === "cup";
   const result = game.result && game.result !== "-" ? " · úrslit " + esc(game.result) : "";
   const teamAttribute = game.key === "augnablik" ? "" : ' data-team="' + esc(game.key) + '"';
-  const masterLabel = game.key === "master" ? '<div class="master-label"><span>MEISTARAFLOKKUR KVENNA</span><strong>HEIMALEIKUR</strong></div>' : "";
-  return '<article class="game' + (travel ? " travel" : "") + (game.key === "master" ? " master" : "") + '"' + teamAttribute + '><div class="date"><strong>' + day + '</strong><span>' + month + " · " + weekday + '</span></div><div>' + masterLabel + '<div class="who"><span class="dot"></span>' + esc(game.team) + '</div><p class="match">' + esc(match) + '</p><p class="details">' + esc(game.time) + " · " + (game.home ? "heima" : "úti") + " · " + esc(game.venue) + result + "</p>" + (travel ? '<span class="travel-badge">📍 Utan höfuðborgarsvæðis</span>' : "") + "</div></article>";
+  const masterLabel = game.key === "master" ? '<div class="master-label"><span>MEISTARAFLOKKUR KVENNA</span><strong>' + (cup ? "BIKARLEIKUR" : "HEIMALEIKUR") + "</strong></div>" : "";
+  const cupLabel = cup && game.key !== "master" ? '<div class="cup-label">🏆 BIKARLEIKUR</div>' : "";
+  return '<article class="game' + (travel ? " travel" : "") + (game.key === "master" ? " master" : "") + (cup ? " cup" : "") + '"' + teamAttribute + '><div class="date"><strong>' + rangeDay + '</strong><span>' + rangeMonth + (game.dateEnd ? " · bil" : " · " + weekday) + '</span></div><div>' + masterLabel + cupLabel + '<div class="who"><span class="dot"></span>' + esc(game.team) + '</div><p class="match">' + esc(match) + '</p><p class="details">' + esc(game.time) + " · " + (game.home ? "heima" : "úti") + " · " + esc(game.venue) + result + "</p>" + (travel ? '<span class="travel-badge">📍 Utan höfuðborgarsvæðis</span>' : "") + "</div></article>";
 }
 
 const now = new Date();
 const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-const end = new Date(today.getTime() + 42 * DAY);
+const windowWeeks = config.windowWeeks || 6;
+const end = new Date(today.getTime() + windowWeeks * 7 * DAY);
 const browser = await chromium.launch({ headless: true });
 let games;
 try {
@@ -120,14 +145,17 @@ try {
 } finally {
   await browser.close();
 }
-games = games.filter(game => game.date >= today && game.date < end).sort((a, b) => a.date - b.date || a.team.localeCompare(b.team, "is"));
-if (!games.length) throw new Error("Engir leikir fundust á næstu sex vikum; síðunni var ekki breytt.");
+games = games.filter(game => (game.dateEnd || game.date) >= today && game.date < end).sort((a, b) => a.date - b.date || a.team.localeCompare(b.team, "is"));
+if (!games.length) throw new Error("Engir leikir fundust á næstu " + windowWeeks + " vikum; síðunni var ekki breytt.");
 
 const checked = new Date();
 const checkedText = checked.getUTCDate() + ". " + monthLong[checked.getUTCMonth()] + " " + checked.getUTCFullYear() + " kl. " + String(checked.getUTCHours()).padStart(2, "0") + ":" + String(checked.getUTCMinutes()).padStart(2, "0");
 const next = games[0];
 const nextWeekday = weekdays[next.date.getUTCDay()];
-const nextSection = '<section class="next-game" aria-labelledby="next-heading"><div class="ball" aria-hidden="true">🏀</div><div><p class="next-label" id="next-heading">Næsti leikur</p><p class="next-title">' + esc(next.team) + " gegn " + esc(next.opponent) + '</p><p class="next-meta">' + nextWeekday[0].toUpperCase() + nextWeekday.slice(1) + ". " + next.date.getUTCDate() + ". " + monthShort[next.date.getUTCMonth()] + ". kl. " + esc(next.time) + " · " + esc(next.venue) + "</p></div></section>";
+const nextDate = next.dateEnd
+  ? next.date.getUTCDate() + ".–" + next.dateEnd.getUTCDate() + ". " + monthShort[next.dateEnd.getUTCMonth()] + ". · " + next.time
+  : nextWeekday[0].toUpperCase() + nextWeekday.slice(1) + ". " + next.date.getUTCDate() + ". " + monthShort[next.date.getUTCMonth()] + ". kl. " + next.time;
+const nextSection = '<section class="next-game" aria-labelledby="next-heading"><div class="ball" aria-hidden="true">🏀</div><div><p class="next-label" id="next-heading">Næsti leikur</p><p class="next-title">' + esc(next.team) + " gegn " + esc(next.opponent) + '</p><p class="next-meta">' + esc(nextDate) + " · " + esc(next.venue) + "</p></div></section>";
 const schedule = '<section class="schedule" aria-label="Leikjadagskrá">\n' + games.map(article).join("\n") + "\n</section>";
 
 let html = await fs.readFile(indexPath, "utf8");
